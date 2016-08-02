@@ -22,6 +22,10 @@ An ant build that installs assuming the following setup:
 - The solradm user has a home directory that is not the same as /opt/solr
 - You have a login and can become solradm
 
+## Status/Disclaimer
+
+This code is forked from my main branch which has some stuff I must keep private. If you use it, please contribute back.  If that happens, we can build a travis CI for this, and keep it tested.  Let's be honest though - puppet, chef, or ansible is a better solution.
+
 ## Using this
 
 - Look at build.properties and the templates/ sub-directory and customize
