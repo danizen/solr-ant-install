@@ -54,6 +54,10 @@ ant install
 ant install-httpd-config
 ```
 
+## What does root do
+
+- Install the solr and zookeeper initscripts, still called nlm-solr and nlm-zookeper in this code
+
 ## Operational Assumptions
 
 This came about at the U.S. National Library of Medicine (NLM) Office of
