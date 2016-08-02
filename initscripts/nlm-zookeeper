@@ -1,0 +1,73 @@
+#!/bin/sh
+
+# chkconfig: - 82 18
+
+### BEGIN INIT INFO
+# Provides:          solr
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Description:       Controls Apache Zookeeper as a Service
+### END INIT INFO
+
+# Example of a very simple *nix init script that delegates commands to the bin/solr script
+# Typical usage is to do:
+#
+#   cp bin/init.d/solr /etc/init.d/solr
+#   chmod 755 /etc/init.d/solr
+#   chown root:root /etc/init.d/solr
+#   update-rc.d solr defaults
+#   update-rc.d solr enable
+
+# Do not create the zookeeper data directory - it should be there
+ZOO_HOME=/usr/nlm/solr/zookeeper/current
+
+ZOO_LOG_DIR=/var/nlm/logs/zookeeper
+
+JMXDISABLE=1
+
+# Specify the user to run Solr as; if not set, then Solr will run as root.
+# Running Solr as root is not recommended for production environments
+RUNAS=solrapp
+
+
+# Update any environment variables here
+if [ -f /etc/sysconfig/nlm-zookeeper ]; then
+        . /etc/sysconfig/nlm-zookeeper
+fi
+
+if [ ! -d "$ZOO_HOME" ]; then
+  echo "$ZOO_HOME not found! Please check the ZOO_HOME setting in your $0 script."
+  exit 1
+fi
+
+# verify the specified run as user exists
+runas_uid=`id -u $RUNAS`
+if [ $? -ne 0 ]; then
+  echo "User $RUNAS not found! Please create the $RUNAS user before running this script."
+  exit 1
+fi
+
+case "$1" in
+  start|stop|restart|status)
+    ZOO_CMD=$1
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|restart|status}"
+    exit
+esac
+
+# For SELinux we need to use 'runuser' not 'su'
+if [ -x "/sbin/runuser" ]; then
+  SU="/sbin/runuser -s /bin/bash"
+else
+  SU="/bin/su -s /bin/bash"
+fi
+
+if [ -n "$RUNAS" ]; then
+  ${SU} -c "ZOO_LOG_DIR=$ZOO_LOG_DIR JMXDISABLE=$JMXDISABLE $ZOO_HOME/bin/zkServer.sh $ZOO_CMD" $RUNAS
+else
+  ZOO_LOG_DIR=$ZOO_LOG_DIR JMXDISABLE=$JMXDISABLE $ZOO_HOME/bin/zkServer.sh $ZOO_CMD
+fi
+

@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="solradm">
+
+  <property file="${user.home}/.solradmrc" />
+  <property file="build.properties" />
+
+  <target name="download-solr">
+    <mkdir dir="${upstream.dir}" />
+    <get src="${solr.url}" dest="${upstream.dir}/${solr.file}" />
+    <checksum file="${upstream.dir}/${solr.file}" property="solr.actual.md5" />
+    <fail message="Expected checksum of ${upstream.dir}/${solr.file} to be ${solr.md5}">
+      <condition>
+        <not>
+          <equals arg1="${solr.md5}" arg2="${solr.actual.md5}" />
+	</not>
+      </condition>
+    </fail>
+  </target>
+
+  <target name="download-central">
+    <mkdir dir="${upstream.dir}" />
+    <get src="${mysql.jdbc.url}" dest="${upstream.dir}/${mysql.jdbc.file}" />
+    <checksum file="${upstream.dir}/${mysql.jdbc.file}" property="mysql.jdbc.actual.md5" />
+    <fail message="Expected checksum of ${upstream.dir}/${mysql.jdbc.file} to be ${mysql.jdbc.md5}">
+      <condition>
+        <not>
+          <equals arg1="${mysql.jdbc.md5}" arg2="${mysql.jdbc.actual.md5}" />
+	</not>
+      </condition>
+    </fail>
+
+  </target>
+
+  <target name="download-zookeeper">
+    <mkdir dir="${upstream.dir}" />
+    <get src="${zookeeper.url}" dest="${upstream.dir}/${zookeeper.file}" />
+    <checksum file="${upstream.dir}/${zookeeper.file}" property="zookeeper.actual.md5" />
+    <fail message="Expected checksum of ${upstream.dir}/${zookeeper.file} to be ${zookeeper.md5}">
+      <condition>
+        <not>
+          <equals arg1="${zookeeper.md5}" arg2="${zookeeper.actual.md5}" />
+	</not>
+      </condition>
+    </fail>
+  </target>
+
+  <target name="install-solr">
+    <unzip src="${upstream.dir}/${solr.file}" dest="${install.dir}" />
+    <symlink resource="${solr.dir}" link="${install.dir}/current" overwrite="true" />
+    <chmod file="${install.dir}/current/bin/solr" perm="ugo+rx" />
+    <chmod file="${install.dir}/current/bin/oom_solr.sh" perm="ugo+rx" />
+    <mkdir dir="${install.dir}/current/server/solr-webapp/webapp" />
+    <unzip src="${install.dir}/current/server/webapps/solr.war" dest="${install.dir}/current/server/solr-webapp/webapp" />
+    <mkdir dir="${install.dir}/current/lib/jdbc" />  
+  </target>
+
+  <target name="install-solr-config">
+    <mkdir dir="${data.dir}/server" />
+    <symlink resource="${data.dir}/server" link="${install.dir}/server" overwrite="true" />
+    <copy todir="${solr.server.dir}" overwrite="true" preservelastmodified="true">
+      <fileset dir="templates/solr/server"/>
+      <filterset begintoken="{{" endtoken="}}" >
+      	<filter token="install.dir" value="${install.dir}" /> 
+      	<filter token="solr.jetty.dir" value="${solr.jetty.dir}" /> 
+      	<filter token="solr.server.dir" value="${solr.server.dir}" /> 
+      	<filter token="data.dir" value="${data.dir}" /> 
+      	<filter token="solr.log.dir" value="${solr.log.dir}" /> 
+      	<filter token="solr.runas" value="${solr.runas}" /> 
+      	<filter token="solr.java.home" value="${solr.java.home}" /> 
+      	<filter token="solr.java.heap" value="${solr.java.heap}" /> 
+      </filterset>
+    </copy>
+    <copy file="${upstream.dir}/${mysql.jdbc.file}" todir="${solr.server.dir}/solr/lib" />
+    <copy todir="${solr.jetty.dir}" overwrite="true" preservelastmodified="true">
+      <fileset dir="templates/solr/current/server"/>
+      <filterset begintoken="{{" endtoken="}}" >
+      	<filter token="install.dir" value="${install.dir}" /> 
+      	<filter token="solr.jetty.dir" value="${solr.jetty.dir}" /> 
+      	<filter token="solr.server.dir" value="${solr.server.dir}" /> 
+      	<filter token="data.dir" value="${data.dir}" /> 
+      	<filter token="solr.log.dir" value="${solr.log.dir}" /> 
+      	<filter token="solr.runas" value="${solr.runas}" /> 
+      	<filter token="solr.java.home" value="${solr.java.home}" /> 
+      	<filter token="solr.java.heap" value="${solr.java.heap}" /> 
+      </filterset>
+    </copy>
+    <mkdir dir="${data.dir}/pid" />
+  </target>
+
+  <target name="install-httpd-conf" description="--> Setup /etc/httpd/conf and /etc/httpd/conf.d">
+
+    <!-- Solr admin hostnames are system specific -->
+    <exec executable="hostname" outputproperty="system.hostname"/>
+    <condition property="httpd.local.name" value="solr-1.example.org">
+       <equals arg1="${system.hostname}" arg2="solr01"/>
+    </condition>
+    <condition property="httpd.local.name" value="solr-2.example.org">
+       <equals arg1="${system.hostname}" arg2="solr02"/>
+    </condition>
+    <condition property="httpd.local.name" value="solr-3.example.org">
+       <equals arg1="${system.hostname}" arg2="solr03"/>
+    </condition>
+
+    <copy todir="${httpd.serverroot}" overwrite="true" preservelastmodified="true">
+      <fileset dir="templates/httpd"/>
+      <filterset begintoken="{{" endtoken="}}" >
+      	<filter token="httpd.log.dir" value="${httpd.log.dir}" /> 
+      	<filter token="httpd.server.name" value="${httpd.server.name}" />
+      	<filter token="httpd.local.name" value="${httpd.local.name}" />
+      	<filter token="system.hostname" value="${system.hostname}" />
+      	<filter token="httpd.cas.server" value="${httpd.cas.server}" />
+      	<filter token="solr.admin.users" value="${solr.admin.users}" />
+      </filterset>
+    </copy>
+  </target>
+
+  <target name="install-zookeeper" 
+          description="--> Installs Apache Zookeeper from downloaded files">
+    <mkdir dir="${install.dir}/zookeeper" />
+    <untar compression="gzip" src="${upstream.dir}/${zookeeper.file}" dest="${install.dir}/zookeeper" />
+    <chmod dir="${install.dir}/zookeeper/${zookeeper.dir}/bin" includes="*.sh" perm="ugo+rx" />
+    <symlink resource="${zookeeper.dir}" link="${install.dir}/zookeeper/current" overwrite="true" />
+  </target>
+
+  <target name="install-zookeeper-config"
+	  description="--> Installs zookeeper configuration to shared directory">
+    <mkdir dir="${data.dir}/zookeeper" />
+    <copy todir="${install.dir}/zookeeper/current/conf" overwrite="true" >
+      <fileset dir="templates/zookeeper"/>
+      <filterset begintoken="{{" endtoken="}}" >
+      	<filter token="data.dir" value="${data.dir}" /> 
+      </filterset>
+    </copy>
+  </target>
+ 
+  <target name="install-zookeeper-id"
+          description="--> Builds the ZOO_DATA_DIR/myid depending on the hostname">
+    <!-- Determine zookeeper id (which server number from zoo.cfg) to be placed in $DATA_DIR/myid -->
+    <exec executable="hostname" outputproperty="system.hostname"/>
+    <condition property="zookeeper.id" value="1">
+      <equals arg1="${system.hostname}" arg2="solr01"/>
+    </condition>
+    <condition property="zookeeper.id" value="2">
+      <equals arg1="${system.hostname}" arg2="solr02"/>
+    </condition>
+    <condition property="zookeeper.id" value="3">
+      <equals arg1="${system.hostname}" arg2="solr03"/>
+    </condition>
+    <echo file="${data.dir}/zookeeper/myid" append="false">${zookeeper.id}</echo>
+  </target>
+
+  <target name="setup-solradm"
+          description="--> Setup the profile, ssh keys, and such of the solradm account">
+    <copy todir="${solradm.home.dir}" overwrite="true">
+      <fileset dir="templates/solradm"/>
+      <filterset begintoken="{{" endtoken="}}" >
+      	<filter token="install.dir" value="${install.dir}" /> 
+      	<filter token="solr.jetty.dir" value="${solr.jetty.dir}" /> 
+      	<filter token="solr.server.dir" value="${solr.server.dir}" /> 
+      	<filter token="solr.java.home" value="${solr.java.home}" />
+      </filterset>
+    </copy>
+  </target>
+
+  <target name="download" 
+          depends="download-solr, download-zookeeper, download-central" 
+          description="--> Download Apache Solr and Apache Zookeeper" />
+
+  <target name="install" 
+          depends="install-solr, install-zookeeper, install-solr-config, install-zookeeper-config, install-zookeeper-id"
+          description="--> Install Apache Solr and Apache Zookeeper from downloaded files" />
+
+  <target name="purge" description="--> Removes everything this build can download or install">
+    <delete dir="${upstream.dir}" />
+  </target>
+
+</project>
